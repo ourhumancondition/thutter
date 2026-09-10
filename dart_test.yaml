@@ -1,0 +1,5 @@
+# Live tests hit the real PocketBase server; run them explicitly with:
+#   flutter test --tags live
+tags:
+  live:
+    skip: "network test — run with: flutter test --tags live"

@@ -1,0 +1,225 @@
+import 'dart:convert';
+
+import 'package:drift/native.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pocketbase/pocketbase.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:thutter/src/core/config.dart';
+import 'package:thutter/src/data/db/database.dart';
+import 'package:thutter/src/data/dev/demo_seed.dart';
+import 'package:thutter/src/data/models/models.dart';
+import 'package:thutter/src/data/pb/credential_store.dart';
+import 'package:thutter/src/data/pb/pocketbase_client.dart';
+import 'package:thutter/src/data/providers.dart';
+import 'package:thutter/src/data/repositories/collection_repository.dart';
+import 'package:thutter/src/data/status/employee_status.dart';
+
+AppDatabase _memDb() => AppDatabase(NativeDatabase.memory());
+
+CollectionRepository<Contact> _contacts(AppDatabase db) => CollectionRepository(
+      collection: Config.cContacts,
+      fromJson: Contact.new,
+      db: db,
+    );
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('demo seed populates every synced collection and queues it for push',
+      () async {
+    final db = _memDb();
+    addTearDown(db.close);
+    await loadDemoData(db);
+
+    for (final c in Config.syncedCollections) {
+      expect(await db.getCollection(c), isNotEmpty, reason: 'collection $c');
+    }
+    // Local edits are all dirty until the first successful push.
+    expect((await db.dirtyRecords()).length, greaterThan(15));
+  });
+
+  test('typed models decode the seeded PocketBase JSON', () async {
+    final db = _memDb();
+    addTearDown(db.close);
+    await loadDemoData(db);
+
+    final companies = (await db.getCollection(Config.cCompanies))
+        .map((r) => Company(jsonDecode(r.data) as Map<String, dynamic>))
+        .toList();
+    expect(companies.map((c) => c.name), contains('Northside Property Group'));
+    expect(companies.firstWhere((c) => c.isCustomer).industry, 'Maintenance');
+
+    final leads = (await db.getCollection(Config.cLeads))
+        .map((r) => Lead(jsonDecode(r.data) as Map<String, dynamic>))
+        .toList();
+    expect(leads.every((l) => l.contactId != null), isTrue);
+  });
+
+  test('create → update → delete moves a record through the sync lifecycle',
+      () async {
+    final db = _memDb();
+    addTearDown(db.close);
+    final repo = _contacts(db);
+
+    final id = await repo.create({'firstname': 'Test', 'lastname': 'Person'});
+    expect(id, startsWith('local_'));
+
+    var row = (await db.getRecord(Config.cContacts, id))!;
+    expect(row.dirty, isTrue);
+    expect(Contact(jsonDecode(row.data)).label, 'Test Person');
+
+    await repo.update(id, {'title': 'Owner'});
+    row = (await db.getRecord(Config.cContacts, id))!;
+    expect(Contact(jsonDecode(row.data)).title, 'Owner');
+    expect(row.dirty, isTrue);
+
+    await repo.delete(id);
+    row = (await db.getRecord(Config.cContacts, id))!;
+    expect(row.deleted, isTrue);
+    expect(row.dirty, isTrue);
+  });
+
+  test('pull cursor + server upsert clears the dirty flag', () async {
+    final db = _memDb();
+    addTearDown(db.close);
+
+    await db.upsertFromServer(Config.cContacts, {
+      'id': 'srv1',
+      'created': '2025-01-01 00:00:00.000Z',
+      'updated': '2025-01-02 00:00:00.000Z',
+      'firstname': 'Server',
+      'lastname': 'Record',
+    });
+    final row = (await db.getRecord(Config.cContacts, 'srv1'))!;
+    expect(row.dirty, isFalse);
+    expect(row.updated, '2025-01-02 00:00:00.000Z');
+
+    await db.setLastSynced(Config.cContacts, '2025-01-02T00:00:00.000Z');
+    expect(await db.lastSynced(Config.cContacts), '2025-01-02T00:00:00.000Z');
+  });
+
+  test('watchCollection is live', () async {
+    final db = _memDb();
+    addTearDown(db.close);
+    final repo = _contacts(db);
+
+    final seen = <int>[];
+    final sub = repo.watchAll().listen((list) => seen.add(list.length));
+    await pumpEventQueue();
+    await repo.create({'firstname': 'A'});
+    await pumpEventQueue();
+    await repo.create({'firstname': 'B'});
+    await pumpEventQueue();
+    await sub.cancel();
+
+    expect(seen.last, 2);
+  });
+
+  group('duty status from time logs', () {
+    Timelog log(String emp, String change, DateTime ts,
+            {String? site, String? vehicle}) =>
+        Timelog({
+          'id': 'l${ts.millisecondsSinceEpoch}',
+          'employee': emp,
+          'change': change,
+          'timestamp': ts.toUtc().toIso8601String(),
+          if (site != null) 'site': site,
+          if (vehicle != null) 'vehicle': vehicle,
+        });
+
+    final base = DateTime(2026, 6, 1, 7);
+
+    ({DutyState state, String? site, String? vehicle}) statusOf(
+        List<Timelog> events) {
+      // Mirror employeeStatusProvider's per-employee reduction.
+      events.sort((a, b) => a.timestamp!.compareTo(b.timestamp!));
+      final state = dutyStateFor(events.last.change);
+      String? site, vehicle;
+      for (final e in events.reversed) {
+        site ??= e.siteId;
+        vehicle ??= e.vehicleId;
+        if (e.change == 'Start Day') break;
+      }
+      if (state != DutyState.onSite) site = null;
+      return (state: state, site: site, vehicle: vehicle);
+    }
+
+    test('on site after Site In', () {
+      final s = statusOf([
+        log('e1', 'Start Day', base),
+        log('e1', 'Travel', base.add(const Duration(minutes: 15)),
+            vehicle: 'truck'),
+        log('e1', 'Site In', base.add(const Duration(hours: 1)), site: 'plaza'),
+      ]);
+      expect(s.state, DutyState.onSite);
+      expect(s.site, 'plaza');
+      expect(s.vehicle, 'truck');
+    });
+
+    test('off duty after End Day, site cleared', () {
+      final s = statusOf([
+        log('e2', 'Start Day', base),
+        log('e2', 'Site In', base.add(const Duration(hours: 1)), site: 'maple'),
+        log('e2', 'Site Out', base.add(const Duration(hours: 6))),
+        log('e2', 'End Day', base.add(const Duration(hours: 7))),
+      ]);
+      expect(s.state, DutyState.offDuty);
+      expect(s.site, isNull);
+    });
+
+    test('segments compute worked vs break time', () {
+      final segs = segmentsFrom([
+        log('e', 'Start Day', base),
+        log('e', 'Site In', base.add(const Duration(hours: 1)), site: 's'),
+        log('e', 'Start Break', base.add(const Duration(hours: 5))),
+        log('e', 'Site In', base.add(const Duration(hours: 5, minutes: 30)),
+            site: 's'),
+        log('e', 'End Day', base.add(const Duration(hours: 9))),
+      ]);
+      final worked = segs
+          .where((x) => x.counts)
+          .fold(Duration.zero, (a, x) => a + x.duration);
+      final brk = segs
+          .where((x) => x.kind == DutyState.onBreak)
+          .fold(Duration.zero, (a, x) => a + x.duration);
+      expect(brk, const Duration(minutes: 30));
+      expect(worked, const Duration(hours: 8, minutes: 30));
+    });
+  });
+
+  test('CredentialStore round-trips and clears (remember me)', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect(await CredentialStore.load(), isNull);
+
+    await CredentialStore.save('a@b.com', r'p@ss w:rd!');
+    final saved = await CredentialStore.load();
+    expect(saved!.email, 'a@b.com');
+    expect(saved.password, r'p@ss w:rd!');
+
+    await CredentialStore.clear();
+    expect(await CredentialStore.load(), isNull);
+  });
+
+  test('PocketBaseClient.forTest wires a client without touching the keychain',
+      () {
+    final client =
+        PocketBaseClient.forTest(PocketBase('http://127.0.0.1:1'));
+    expect(client.isAuthenticated, isFalse);
+    expect(client.authRecord, isNull);
+  });
+
+  test('provider graph builds with overrides', () {
+    final db = _memDb();
+    addTearDown(db.close);
+    final container = ProviderContainer(overrides: [
+      databaseProvider.overrideWithValue(db),
+      pocketBaseClientProvider.overrideWithValue(
+          PocketBaseClient.forTest(PocketBase('http://127.0.0.1:1'))),
+    ]);
+    addTearDown(container.dispose);
+
+    expect(container.read(syncServiceProvider), isNotNull);
+    expect(container.read(databaseProvider), same(db));
+  });
+}
