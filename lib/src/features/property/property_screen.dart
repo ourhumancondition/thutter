@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../common/duty.dart';
 import '../../common/format.dart';
+import '../../common/record_picker.dart';
 import '../../common/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
 import '../../data/status/employee_status.dart';
+import '../tenant/tenant_switcher.dart';
 
 const _propertyTypes = [
   'Residence', 'Condo', 'Commercial', 'Industrial', 'Public',
@@ -231,7 +233,6 @@ class _PropertyEditScreenState extends ConsumerState<PropertyEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final contacts = ref.watch(contactsListProvider).value ?? const [];
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null ? 'New property' : 'Edit property'),
@@ -265,15 +266,9 @@ class _PropertyEditScreenState extends ConsumerState<PropertyEditScreen> {
             onChanged: (v) => setState(() => _type = v),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _contactId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Primary contact', border: OutlineInputBorder()),
-            items: [
-              for (final c in contacts)
-                DropdownMenuItem(value: c.id, child: Text(c.label)),
-            ],
+          ContactPickerField(
+            label: 'Primary contact',
+            value: _contactId,
             onChanged: (v) => setState(() => _contactId = v),
           ),
           const SizedBox(height: 12),

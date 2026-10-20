@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../common/format.dart';
+import '../../common/record_picker.dart';
 import '../../common/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
+import '../tenant/tenant_switcher.dart';
 
 const _leadStatuses = [
   'New', 'Chase', 'Follow up', 'Requires Visit', 'On Hold', 'Disqualified', 'Closed',
@@ -124,7 +126,6 @@ class _LeadEditScreenState extends ConsumerState<LeadEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final contacts = ref.watch(contactsListProvider).value ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -154,15 +155,9 @@ class _LeadEditScreenState extends ConsumerState<LeadEditScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: _contactId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Contact', border: OutlineInputBorder()),
-            items: [
-              for (final c in contacts)
-                DropdownMenuItem(value: c.id, child: Text(c.label)),
-            ],
+          ContactPickerField(
+            label: 'Contact',
+            value: _contactId,
             onChanged: (v) => setState(() => _contactId = v),
           ),
           const SizedBox(height: 12),

@@ -138,7 +138,27 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _tf(_name, 'Task'),
-          _tf(_status, 'Status'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: DropdownButtonFormField<String>(
+              // Rebuild when the Completed switch changes the status.
+              key: ValueKey(_status),
+              initialValue: _status,
+              decoration: const InputDecoration(
+                  labelText: 'Status', border: OutlineInputBorder()),
+              items: [
+                for (final s in taskStatuses)
+                  DropdownMenuItem(value: s, child: Text(s)),
+                // Keep an older free-text status selectable rather than lose it.
+                if (!taskStatuses.contains(_status))
+                  DropdownMenuItem(value: _status, child: Text(_status)),
+              ],
+              onChanged: (v) => setState(() {
+                _status = v ?? _status;
+                _completed = _status == _done;
+              }),
+            ),
+          ),
           ListTile(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),

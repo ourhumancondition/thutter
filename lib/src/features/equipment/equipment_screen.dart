@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../common/format.dart';
+import '../../common/record_picker.dart';
 import '../../common/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
 import '../../data/status/employee_status.dart';
+import '../tenant/tenant_switcher.dart';
 
 const _brands = [
   'Bobcat', 'CAT', 'Chevrolet', 'Dodge', 'Ford', 'GMC', 'Komatsu', 'Kubota',
@@ -206,7 +208,6 @@ class _EquipmentEditScreenState extends ConsumerState<EquipmentEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final properties = ref.watch(propertiesListProvider).value ?? const [];
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -264,15 +265,9 @@ class _EquipmentEditScreenState extends ConsumerState<EquipmentEditScreen> {
             ),
           ]),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _locationId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Location', border: OutlineInputBorder()),
-            items: [
-              for (final p in properties)
-                DropdownMenuItem(value: p.id, child: Text(p.label)),
-            ],
+          PropertyPickerField(
+            label: 'Location',
+            value: _locationId,
             onChanged: (v) => setState(() => _locationId = v),
           ),
           const SizedBox(height: 6),

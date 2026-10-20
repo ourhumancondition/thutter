@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../common/format.dart';
+import '../../common/record_picker.dart';
 import '../../common/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
+import '../tenant/tenant_switcher.dart';
 
 class WorkOrdersScreen extends ConsumerWidget {
   const WorkOrdersScreen({super.key});
@@ -110,8 +112,6 @@ class _WorkOrderEditScreenState extends ConsumerState<WorkOrderEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final contacts = ref.watch(contactsListProvider).value ?? const [];
-    final properties = ref.watch(propertiesListProvider).value ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -136,27 +136,15 @@ class _WorkOrderEditScreenState extends ConsumerState<WorkOrderEditScreen> {
         children: [
           _tf(_name, 'Name'),
           const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: _contactId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Contact', border: OutlineInputBorder()),
-            items: [
-              for (final c in contacts)
-                DropdownMenuItem(value: c.id, child: Text(c.label)),
-            ],
+          ContactPickerField(
+            label: 'Contact',
+            value: _contactId,
             onChanged: (v) => setState(() => _contactId = v),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _propertyId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Property', border: OutlineInputBorder()),
-            items: [
-              for (final p in properties)
-                DropdownMenuItem(value: p.id, child: Text(p.label)),
-            ],
+          PropertyPickerField(
+            label: 'Property',
+            value: _propertyId,
             onChanged: (v) => setState(() => _propertyId = v),
           ),
           const SizedBox(height: 12),

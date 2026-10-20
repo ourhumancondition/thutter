@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../common/duty.dart';
 import '../../common/format.dart';
+import '../../common/record_picker.dart';
 import '../../common/widgets.dart';
 import '../../data/repositories/providers.dart';
 import '../../data/status/employee_status.dart';
+import '../tenant/tenant_switcher.dart';
 import 'timesheet_screen.dart';
 
 const _changes = [
@@ -328,9 +330,6 @@ class _TimelogEditScreenState extends ConsumerState<TimelogEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final employees = ref.watch(employeesListProvider).value ?? const [];
-    final properties = ref.watch(propertiesListProvider).value ?? const [];
-    final equipment = ref.watch(equipmentListProvider).value ?? const [];
     final needsSite = _change == 'Site In' || _change == 'Site Out';
     final needsVehicle = _change == 'Travel';
 
@@ -342,15 +341,9 @@ class _TimelogEditScreenState extends ConsumerState<TimelogEditScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          DropdownButtonFormField<String>(
-            initialValue: _employeeId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-                labelText: 'Employee', border: OutlineInputBorder()),
-            items: [
-              for (final e in employees)
-                DropdownMenuItem(value: e.id, child: Text(e.label)),
-            ],
+          EmployeePickerField(
+            label: 'Employee',
+            value: _employeeId,
             onChanged: (v) => setState(() => _employeeId = v),
           ),
           const SizedBox(height: 12),
@@ -366,29 +359,17 @@ class _TimelogEditScreenState extends ConsumerState<TimelogEditScreen> {
           ),
           if (needsSite) ...[
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _siteId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                  labelText: 'Site', border: OutlineInputBorder()),
-              items: [
-                for (final p in properties)
-                  DropdownMenuItem(value: p.id, child: Text(p.label)),
-              ],
+            PropertyPickerField(
+              label: 'Site',
+              value: _siteId,
               onChanged: (v) => setState(() => _siteId = v),
             ),
           ],
           if (needsVehicle) ...[
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _vehicleId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                  labelText: 'Vehicle', border: OutlineInputBorder()),
-              items: [
-                for (final e in equipment)
-                  DropdownMenuItem(value: e.id, child: Text(e.label)),
-              ],
+            EquipmentPickerField(
+              label: 'Vehicle',
+              value: _vehicleId,
               onChanged: (v) => setState(() => _vehicleId = v),
             ),
           ],

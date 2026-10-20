@@ -209,12 +209,22 @@ class Property extends PbRecord {
   String? get google => str('google');
   String? get addressString => str('address_string');
 
-  String get label {
-    final composed = [
-      [number, street].whereType<String>().join(' ').trim().nullIfEmpty,
-      city,
-    ].whereType<String>().join(', ').nullIfEmpty;
-    return name ?? addressString ?? composed ?? id;
+  /// The street address: `address_string` if set, else "number street, city".
+  String? get address =>
+      addressString ??
+      [
+        [number, street].whereType<String>().join(' ').trim().nullIfEmpty,
+        city,
+      ].whereType<String>().join(', ').nullIfEmpty;
+
+  String get label => name ?? address ?? id;
+
+  /// "Maple Court Estate, 14 Maple Court, Toronto" — the name with its address
+  /// after a comma, so same-named or vaguely named sites can be told apart.
+  String get labelWithAddress {
+    final n = name, a = address;
+    if (n != null && a != null && a != n) return '$n, $a';
+    return label;
   }
 }
 
