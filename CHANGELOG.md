@@ -9,7 +9,7 @@ Commit hashes are on `offline-first-sync` unless noted.
 
 ## 2026-10-20
 
-### Sync errors you can actually read
+### Sync errors you can actually read — `e50383f`
 - Sync failures are classified (`SyncProblem`: can't reach server, sign-in
   expired, server refused a change, unknown) with a plain-language message that
   names the step that failed, e.g. "while uploading a change to tasks", plus the
@@ -22,7 +22,7 @@ Commit hashes are on `offline-first-sync` unless noted.
 - **Why:** previously the chip only said "Sync error" and tapping it silently
   retried, so a stuck or failing sync was invisible and undiagnosable.
 
-### Real internet check (`connectionProvider`)
+### Real internet check (`connectionProvider`) — `e50383f`
 - `connectivity_plus` only reports whether Wi-Fi/Ethernet is up. The new check
   (`lib/src/data/net/connection_check.dart`) asks the Thyme server's
   `/api/health`, and if that fails, `gstatic.com/generate_204`, to tell
@@ -32,7 +32,7 @@ Commit hashes are on `offline-first-sync` unless noted.
   sync can't reach the server. While not online it re-checks every 30 s and
   syncs as soon as the connection is back.
 
-### Sign-out confirmation ("Trying to escape work?")
+### Sign-out confirmation ("Trying to escape work?") — `e50383f`
 - Sign out now asks first, with "Back to work" as the default button. Signing
   out wipes the local database, so the dialog says how many unsynced changes
   would be lost ("Escape anyway"), and shows a live connection check warning
@@ -62,7 +62,7 @@ Commit hashes are on `offline-first-sync` unless noted.
 - **Why:** after the server migration below, `tenant` is required, so every
   create from the old app was rejected (HTTP 400).
 
-### Docs
+### Docs — `a8042d9`, `afd4c9f`
 - Added this changelog; brought `README.md` and `docs/ARCHITECTURE.md` up to
   date; committed `docs/TENANCY.md` and the migration/verification scripts
   (personal details removed; owner now comes from `PB_OWNER_EMAIL`).
