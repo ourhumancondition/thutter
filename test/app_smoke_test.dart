@@ -14,8 +14,13 @@ import 'package:thutter/src/data/pb/credential_store.dart';
 import 'package:thutter/src/data/pb/pocketbase_client.dart';
 import 'package:thutter/src/data/providers.dart';
 import 'package:thutter/src/data/repositories/collection_repository.dart';
+import 'package:thutter/src/common/record_picker.dart';
+import 'package:thutter/src/common/widgets.dart';
 import 'package:thutter/src/data/status/employee_status.dart';
 import 'package:thutter/src/data/sync/sync_service.dart';
+import 'package:thutter/src/data/repositories/providers.dart';
+import 'package:thutter/src/features/tenant/tenant_switcher.dart';
+import 'package:flutter/material.dart' show Color;
 
 AppDatabase _memDb() => AppDatabase(NativeDatabase.memory());
 
@@ -126,6 +131,125 @@ void main() {
     await db.clearCursors(keep: {Config.cMemberships});
     expect(await db.lastSynced(Config.cContacts), isNull);
     expect(await db.lastSynced(Config.cMemberships), 'y');
+  });
+
+  group('search and pickers', () {
+    test('every word must match somewhere; blank matches all', () {
+      final fields = ['James Okafor', 'Northside Property Group', null, 6475550142];
+      expect(matchesSearch('', fields), isTrue);
+      expect(matchesSearch('  ', fields), isTrue);
+      expect(matchesSearch('james northside', fields), isTrue);
+      expect(matchesSearch('JAMES', fields), isTrue);
+      expect(matchesSearch('647555', fields), isTrue);
+      expect(matchesSearch('james greenleaf', fields), isFalse);
+    });
+
+    test('property shows its name with the address after a comma', () {
+      final named = Property({
+        'id': 'p1',
+        'name': 'Maple Court Estate',
+        'number': '14',
+        'street': 'Maple Court',
+        'city': 'Toronto',
+      });
+      expect(named.labelWithAddress, 'Maple Court Estate, 14 Maple Court, Toronto');
+
+      final withString = Property({
+        'id': 'p2',
+        'name': 'Plaza',
+        'address_string': '900 Dundas St W, Mississauga, ON',
+      });
+      expect(withString.labelWithAddress, 'Plaza, 900 Dundas St W, Mississauga, ON');
+
+      // No name → just the address; no address → just the name.
+      expect(Property({'id': 'p3', 'street': 'Elm St', 'number': '5'}).labelWithAddress,
+          '5 Elm St');
+      expect(Property({'id': 'p4', 'name': 'Yard'}).labelWithAddress, 'Yard');
+    });
+
+    test('picker search covers the context line too', () {
+      const o = PickerOption('c1', 'Marie Tremblay',
+          subtitle: 'Owner · marie@example.com');
+      expect(o.matches('marie'), isTrue);
+      expect(o.matches('owner'), isTrue);
+      expect(o.matches('example.com tremblay'), isTrue);
+      expect(o.matches('james'), isFalse);
+    });
+  });
+
+  group('business switcher', () {
+    test('initials from the first two words', () {
+      expect(tenantInitials('Kalmark Integrated Systems Ltd'), 'KI');
+      expect(tenantInitials('Natura'), 'N');
+      expect(tenantInitials('  natura   landscape '), 'NL');
+    });
+
+    test("owner's colour wins; otherwise a steady automatic one", () {
+      final picked = Tenant({'id': 'abc', 'name': 'X', 'color': '#1565C0'});
+      expect(tenantColor(picked), const Color(0xFF1565C0));
+
+      final auto1 = Tenant({'id': 'zhshe5z3ncdvyy0', 'name': 'Natura'});
+      final auto2 = Tenant({'id': 'zhshe5z3ncdvyy0', 'name': 'Renamed'});
+      expect(tenantColor(auto1), tenantColor(auto2));
+      expect(tenantPalette, contains(tenantColor(auto1)));
+
+      // Junk in the field falls back rather than crashing.
+      final junk = Tenant({'id': 'abc', 'name': 'X', 'color': 'green'});
+      expect(tenantPalette, contains(tenantColor(junk)));
+    });
+
+    test('automatic colours never repeat while the palette has room', () {
+      final many = [
+        for (var i = 0; i < tenantPalette.length; i++)
+          Tenant({'id': 'tenant$i', 'name': 'T$i'}),
+      ];
+      final colors = assignTenantColors(many);
+      expect(colors.values.toSet().length, tenantPalette.length);
+
+      // The live Natura + Kalmark ids collided under the old per-id colour.
+      final pair = assignTenantColors([
+        Tenant({'id': 'zhshe5z3ncdvyy0', 'name': 'Natura'}),
+        Tenant({'id': 'uct1nxsasv3j378', 'name': 'Kalmark'}),
+      ]);
+      expect(pair['zhshe5z3ncdvyy0'], isNot(pair['uct1nxsasv3j378']));
+
+      // An owner's pick is kept, and automatic ones avoid it.
+      final mixed = assignTenantColors([
+        Tenant({'id': 'a', 'name': 'A', 'color': '#2E7D32'}),
+        Tenant({'id': 'b', 'name': 'B'}),
+      ]);
+      expect(mixed['a'], const Color(0xFF2E7D32));
+      expect(mixed['b'], isNot(const Color(0xFF2E7D32)));
+    });
+
+    test('switching business arms the confirm-on-first-add guard', () async {
+      SharedPreferences.setMockInitialValues({});
+      final db = _memDb();
+      addTearDown(db.close);
+      Map<String, dynamic> t(String id) =>
+          {'id': id, 'name': id, 'updated': '2026-01-01 00:00:00.000Z'};
+      await db.upsertFromServer(Config.cTenants, t('natura'));
+      await db.upsertFromServer(Config.cTenants, t('kalmark'));
+
+      final c = ProviderContainer(overrides: [
+        databaseProvider.overrideWithValue(db),
+        pocketBaseClientProvider.overrideWithValue(
+            PocketBaseClient.forTest(PocketBase('http://127.0.0.1:1'))),
+      ]);
+      addTearDown(c.dispose);
+      c.listen(activeTenantProvider, (_, __) {});
+      c.listen(myTenantsProvider, (_, __) {});
+      await pumpEventQueue();
+      final first = await c.read(activeTenantProvider.future);
+      expect(first, isNotNull);
+      expect(c.read(confirmAfterSwitchProvider), isFalse);
+
+      final other = (await c.read(myTenantsProvider.future))
+          .firstWhere((x) => x.id != first!.id);
+      await c.read(activeTenantProvider.notifier).select(other);
+      expect(c.read(activeTenantProvider).value?.id, other.id);
+      expect(c.read(confirmAfterSwitchProvider), isTrue);
+    });
   });
 
   group('connection check', () {

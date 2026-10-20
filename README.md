@@ -35,7 +35,7 @@ The PocketBase URL defaults to `https://landscape.pockethost.io` if the
 | Auth: online first sign-in, offline thereafter | ✅ |
 | Screens: contacts, companies, properties, leads, work orders, tasks, employees, equipment, time logs | ✅ |
 | Live sync with PocketBase | ✅ |
-| Multi-tenant: business picker, per-business data, `tenant` stamped on creates | ✅ |
+| Multi-tenant: top-bar business switcher with colours, per-business data, `tenant` stamped on creates, confirm on first add after switching | ✅ |
 | Sync errors + real internet check (banner, status chip, details sheet) | ✅ |
 | Sign-out confirmation with connection check | ✅ |
 | Time tracking: live employee status, on-site / in-vehicle, timesheets | ✅ |

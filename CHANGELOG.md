@@ -9,6 +9,69 @@ Commit hashes are on `offline-first-sync` unless noted.
 
 ## 2026-10-20
 
+### Business switcher in the top bar
+- The active business is now always shown at the top left: a coloured
+  initials badge and the name, with a ▾ menu to switch when you belong to more
+  than one (people with a single business see just the name). It replaces the
+  "Business" item hidden in the account menu, which most people wouldn't find.
+- A 4px stripe under the top bar in the business's colour, so you can tell at a
+  glance which business you're in.
+- **Colours:** owners and admins choose one under **Business colour…** (in the
+  switcher menu and account menu). Until then the app assigns one
+  automatically, and `assignTenantColors` makes sure two businesses never share
+  a colour while the palette has a free one.
+- **Wrong-business guard:** the first "New …" after switching asks "Add this to
+  Kalmark?" before the form opens; after that it stays quiet until the next
+  switch (`confirmAfterSwitchProvider`, `confirmTenantThen`).
+- **Server (2026-10-20):** added optional `tenants.color` (text,
+  `^#[0-9A-Fa-f]{6}$`). The existing `updateRule` (`admin_tenants`) already lets
+  owners and admins set it. The previous collection definition was backed up
+  before the change. Both businesses start blank (automatic colour).
+
+### Employee edit form no longer blanks names
+- Employee rows mostly store the name only in `fullname` (first/last empty),
+  and some only on the linked contact card (`contact_profile`). The form read
+  only first/last, so it opened blank, and saving rebuilt `fullname` from the
+  empty boxes, **erasing the stored name**.
+- The form now fills from first/last, else `fullname` (split on the last
+  space), else the linked contact (name + email). Saving with empty name
+  boxes leaves the stored name alone.
+- Found when Alex's own record opened blank. No data was lost: the name was
+  re-typed before the blank synced. It is now "Alex Kalmar" (was "Alexander
+  Kalmar" in `fullname`).
+
+### Searchable record pickers with context
+- Fields that pick a record are now searchable pickers (`RecordPickerField`,
+  `lib/src/common/record_picker.dart`) instead of plain dropdowns. Tapping one
+  opens a search dialog where each choice shows a line of context:
+  - **Contact** (work orders, leads, a property's primary contact):
+    title · company · email or phone
+  - **Property / Site / Location** (work orders, time logs, equipment): the
+    name **with its address after a comma** (`Property.labelWithAddress`),
+    then type · contacts
+  - **Employee** (time logs): job type · subcontractor · inactive
+  - **Vehicle** (time logs): shortcode · where it is · out of service
+- Search matches every typed word against the name and the context line.
+  Fields can be cleared. Short fixed lists (status, type, brand, colour,
+  industry) stay as plain dropdowns.
+
+### Search on Companies and Contacts
+- Companies now has a search bar at the top, like Contacts. Both match every
+  typed word across name, company, title, industry, email, phone (raw or
+  formatted), address/city and source (`matchesSearch`), have a clear (×)
+  button, and say "No … match" rather than "No …" when a search finds nothing.
+  A blank search shows everything as before.
+
+### Task status is a dropdown
+- New/edit task: **Status** is a dropdown (Open, In progress, Waiting, Done)
+  instead of free text. `tasks.status` is still plain text on the server, so the
+  list lives in the app (`taskStatuses`). An older free-text value stays
+  selectable rather than being lost.
+- "Done" and the **Completed** switch stay in step: picking Done ticks
+  Completed, ticking Completed sets Done, and unticking it sets Open.
+- The sync chip says "Not synced yet" instead of "Synced never" before the
+  first sync.
+
 ### Sync errors you can actually read — `e50383f`
 - Sync failures are classified (`SyncProblem`: can't reach server, sign-in
   expired, server refused a change, unknown) with a plain-language message that

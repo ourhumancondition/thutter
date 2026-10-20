@@ -84,8 +84,12 @@ What's live on the server (Phase 1, 2026-09-10):
 In the app:
 
 - `activeTenantProvider` is the business the user is working in, chosen in the
-  business picker (`features/tenant/tenant_picker.dart`) and saved in
-  `shared_preferences` (`active_tenant_id`). `myTenantsProvider` lists the
+  top-bar switcher (`features/tenant/tenant_switcher.dart`) and saved in
+  `shared_preferences` (`active_tenant_id`). Each business has a colour
+  (`tenants.color` if an owner/admin picked one, else assigned by
+  `assignTenantColors`), shown on its badge and a stripe under the top bar.
+  After a switch, the first "New …" asks the user to confirm the business
+  (`confirmTenantThen`). `myTenantsProvider` lists the
   tenants the user can switch to; `activeMembershipProvider` gives their role.
 - `Config.tenantScoped` lists the tenant-owned collections. Their repositories
   stamp `tenant: <active tenant>` on every create (and refuse to create with no
