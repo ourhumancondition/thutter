@@ -9,7 +9,7 @@ Commit hashes are on `offline-first-sync` unless noted.
 
 ## 2026-10-20
 
-### Business switcher in the top bar
+### Business switcher in the top bar — `6df5b35`
 - The active business is now always shown at the top left: a coloured
   initials badge and the name, with a ▾ menu to switch when you belong to more
   than one (people with a single business see just the name). It replaces the
@@ -28,7 +28,7 @@ Commit hashes are on `offline-first-sync` unless noted.
   owners and admins set it. The previous collection definition was backed up
   before the change. Both businesses start blank (automatic colour).
 
-### Employee edit form no longer blanks names
+### Employee edit form no longer blanks names — `11d2255`
 - Employee rows mostly store the name only in `fullname` (first/last empty),
   and some only on the linked contact card (`contact_profile`). The form read
   only first/last, so it opened blank, and saving rebuilt `fullname` from the
@@ -40,7 +40,7 @@ Commit hashes are on `offline-first-sync` unless noted.
   re-typed before the blank synced. It is now "Alex Kalmar" (was "Alexander
   Kalmar" in `fullname`).
 
-### Searchable record pickers with context
+### Searchable record pickers with context — `c0b9dbe`
 - Fields that pick a record are now searchable pickers (`RecordPickerField`,
   `lib/src/common/record_picker.dart`) instead of plain dropdowns. Tapping one
   opens a search dialog where each choice shows a line of context:
@@ -55,14 +55,14 @@ Commit hashes are on `offline-first-sync` unless noted.
   Fields can be cleared. Short fixed lists (status, type, brand, colour,
   industry) stay as plain dropdowns.
 
-### Search on Companies and Contacts
+### Search on Companies and Contacts — `7ffad55`
 - Companies now has a search bar at the top, like Contacts. Both match every
   typed word across name, company, title, industry, email, phone (raw or
   formatted), address/city and source (`matchesSearch`), have a clear (×)
   button, and say "No … match" rather than "No …" when a search finds nothing.
   A blank search shows everything as before.
 
-### Task status is a dropdown
+### Task status is a dropdown — `7a2eb7e`
 - New/edit task: **Status** is a dropdown (Open, In progress, Waiting, Done)
   instead of free text. `tasks.status` is still plain text on the server, so the
   list lives in the app (`taskStatuses`). An older free-text value stays
