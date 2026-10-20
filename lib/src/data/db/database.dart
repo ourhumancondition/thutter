@@ -161,6 +161,29 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Forget every pull cursor except [keep], so the next sync re-pulls each
+  /// collection in full.
+  Future<void> clearCursors({Set<String> keep = const {}}) {
+    return (delete(syncMeta)..where((s) => s.collection.isNotIn(keep))).go();
+  }
+
+  /// Drop synced (non-dirty) rows in [collections] whose `tenant` is not in
+  /// [tenantIds] — data from a business the user no longer belongs to.
+  Future<void> pruneOutsideTenants(
+      Set<String> collections, Set<String> tenantIds) async {
+    final rows = await (select(records)
+          ..where((r) => r.collection.isIn(collections) & r.dirty.equals(false)))
+        .get();
+    await transaction(() async {
+      for (final row in rows) {
+        final tenant = (jsonDecode(row.data) as Map<String, dynamic>)['tenant'];
+        if (!tenantIds.contains(tenant)) {
+          await hardDelete(row.collection, row.id);
+        }
+      }
+    });
+  }
+
   Future<void> wipe() async {
     await delete(records).go();
     await delete(syncMeta).go();

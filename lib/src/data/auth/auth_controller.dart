@@ -150,7 +150,7 @@ class AuthController extends Notifier<AuthState> {
       'display_name': 'Demo User',
       'first_name': 'Demo',
       'last_name': 'User',
-      'type': 'admin',
+      'tenants': ['local_tenant_demo'],
       'created': DateTime.now().toUtc().toIso8601String(),
       'updated': DateTime.now().toUtc().toIso8601String(),
       'collectionName': Config.cUsers,

@@ -90,7 +90,6 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   }
 
   Future<void> _save() async {
-    final ws = ref.read(activeWorkspaceProvider).value;
     final user = ref.read(currentUserIdProvider);
     final fields = <String, dynamic>{
       'shortname': _name.text.trim(),
@@ -101,7 +100,6 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     };
     final repo = ref.read(taskRepoProvider);
     if (widget.existing == null) {
-      if (ws != null) fields['workspace'] = ws.id;
       if (user != null) fields['created_by'] = user;
       await repo.create(fields);
     } else {

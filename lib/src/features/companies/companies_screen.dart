@@ -145,7 +145,6 @@ class _CompanyEditScreenState extends ConsumerState<CompanyEditScreen> {
   }
 
   Future<void> _save() async {
-    final ws = ref.read(activeWorkspaceProvider).value;
     final fields = <String, dynamic>{
       'company': _name.text.trim(),
       'phone': num.tryParse(_phone.text.replaceAll(RegExp(r'[^0-9]'), '')),
@@ -157,7 +156,6 @@ class _CompanyEditScreenState extends ConsumerState<CompanyEditScreen> {
     };
     final repo = ref.read(companyRepoProvider);
     if (widget.existing == null) {
-      if (ws != null) fields['workspace_id'] = ws.id;
       await repo.create(fields);
     } else {
       await repo.update(widget.existing!.id, fields);

@@ -15,6 +15,9 @@ class PbRecord {
   String get id => data['id'] as String? ?? '';
   bool get isLocalOnly => id.startsWith('local_');
 
+  /// The owning tenant, on tenant-scoped collections.
+  String? get tenantId => rel('tenant');
+
   DateTime? get createdAt => _date(data['created']);
   DateTime? get updatedAt => _date(data['updated']);
 

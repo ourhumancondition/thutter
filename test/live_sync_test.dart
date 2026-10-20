@@ -27,7 +27,7 @@ void main() {
     final sync = SyncService(db, pb);
 
     // No token — every collection's listRule filters everything out.
-    for (final c in [Config.cWorkspace, Config.cContacts, Config.cCompanies]) {
+    for (final c in [Config.cTenants, Config.cContacts, Config.cCompanies]) {
       await sync.pullCollection(c);
       expect(await db.getCollection(c), isEmpty, reason: '$c leaked to anon');
       // The pull still succeeds and advances the cursor — it's just empty.

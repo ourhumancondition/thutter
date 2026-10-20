@@ -2,14 +2,30 @@ import 'pb_record.dart';
 
 export 'pb_record.dart';
 
-/// A tenant / company workspace. Collection: `workspace`.
-class Workspace extends PbRecord {
-  Workspace(super.data);
+/// A business using Thyme. Collection: `tenants`. Every operational record
+/// points at one via its `tenant` relation.
+class Tenant extends PbRecord {
+  Tenant(super.data);
 
-  String get tenantName => str('tenant_name') ?? 'Untitled workspace';
-  String? get ownerId => rel('owner_id');
-  DateTime? get deletedAt => date('deletedAt');
-  bool get isDeleted => deletedAt != null;
+  String get name => str('name') ?? 'Untitled business';
+  String? get slug => str('slug');
+  String? get plan => str('plan'); // trial | active | suspended
+  DateTime? get archivedAt => date('archived_at');
+  bool get isArchived => archivedAt != null;
+}
+
+/// A user's role in one tenant. Collection: `memberships`.
+class Membership extends PbRecord {
+  Membership(super.data);
+
+  String? get userId => rel('user');
+  String? get role => str('role'); // owner | admin | manager | staff
+  String? get status => str('status'); // active | invited | suspended
+  bool get isActive => status == null || status == 'active';
+
+  /// Owners and admins manage memberships; managers and up see all data.
+  bool get canManageMembers => role == 'owner' || role == 'admin';
+  bool get isStaff => role == 'staff';
 }
 
 /// An application user. Collection: `users`.
@@ -22,9 +38,9 @@ class AppUser extends PbRecord {
   String? get lastName => str('last_name');
   String? get displayName => str('display_name');
   String? get fullName => str('full_name');
-  String? get type => str('type'); // admin | manager | employee | client
-  String? get level => str('level'); // retail | contractor | wholesale
-  String? get workspaceId => rel('workspaces');
+  /// Cache of the tenants this user is an active member of. The API rules read
+  /// it; the app uses it to know which tenants to offer.
+  List<String> get tenantIds => relList('tenants');
   String? get employeeId => rel('employee');
   String? get contactProfileId => rel('contact_profile');
   bool get archived => flag('archive');
@@ -75,7 +91,7 @@ class Contact extends PbRecord {
   }
 }
 
-/// A company. Collection: `companies`. Workspace-scoped via `workspace_id`.
+/// A company. Collection: `companies`.
 class Company extends PbRecord {
   Company(super.data);
 
@@ -86,7 +102,6 @@ class Company extends PbRecord {
   String? get industry => str('industry');
   bool get isCustomer => flag('customer');
   bool get isSupplier => flag('supplier');
-  String? get workspaceId => rel('workspace_id');
 
   String get label => name ?? id;
 }
@@ -105,7 +120,7 @@ class Lead extends PbRecord {
   String get label => title ?? id;
 }
 
-/// A task. Collection: `tasks`. Workspace-scoped via `workspace`.
+/// A task. Collection: `tasks`.
 class Task extends PbRecord {
   Task(super.data);
 
@@ -120,16 +135,14 @@ class Task extends PbRecord {
   String? get parentId => rel('parent');
   bool get completed => flag('completed');
   String? get status => str('status');
-  String? get workspaceId => rel('workspace');
 
   String get label => shortname ?? id;
 }
 
-/// An employee. Collection: `employees`. Workspace-scoped via `workspace`.
+/// An employee. Collection: `employees`.
 class Employee extends PbRecord {
   Employee(super.data);
 
-  String? get workspaceId => rel('workspace');
   String? get fullname => str('fullname');
   String? get firstname => str('firstname');
   String? get lastname => str('lastname');

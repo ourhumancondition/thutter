@@ -89,6 +89,7 @@ class SyncService {
         await _pushAll();
         for (final c in Config.syncedCollections) {
           await pullCollection(c);
+          if (c == Config.cMemberships) await _resetIfTenantsChanged();
         }
       }
       await refreshPendingCount();
@@ -160,6 +161,36 @@ class SyncService {
   }
 
   // ------------------------------------------------------------------ pull ---
+
+  /// `sync_meta` key holding the tenant ids the local data was pulled for.
+  static const _tenantsKey = '_tenants';
+
+  /// Pull cursors only fetch rows changed since the last sync, so data from a
+  /// tenant the user just joined would never arrive. Run right after
+  /// memberships are pulled: when the user's set of tenants differs from last
+  /// time, drop rows from tenants they left and re-pull everything else.
+  Future<void> _resetIfTenantsChanged() async {
+    final uid = _pb.authStore.record?.id;
+    if (uid == null) return;
+    final tenants = <String>{};
+    for (final row in await _db.getCollection(Config.cMemberships)) {
+      final m = jsonDecode(row.data) as Map<String, dynamic>;
+      final status = m['status']?.toString() ?? '';
+      if (m['user'] == uid && (status.isEmpty || status == 'active')) {
+        tenants.add(m['tenant'].toString());
+      }
+    }
+    final key = (tenants.toList()..sort()).join(',');
+    if (await _db.lastSynced(_tenantsKey) == key) return;
+
+    await _db.pruneOutsideTenants(
+        {...Config.tenantScoped, Config.cMemberships}, tenants);
+    await _db.clearCursors(keep: {Config.cMemberships});
+    await _db.setLastSynced(_tenantsKey, key);
+    // Tenants were pulled just before memberships; fetch them again in full so
+    // a newly joined tenant's (older) record arrives too.
+    await pullCollection(Config.cTenants);
+  }
 
   /// PocketBase stores timestamps as `YYYY-MM-DD HH:MM:SS.sssZ` (space, not `T`)
   /// and compares filter values lexically, so the cursor must match that shape.

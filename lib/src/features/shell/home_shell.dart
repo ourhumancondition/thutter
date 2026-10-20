@@ -16,7 +16,7 @@ import '../property/property_screen.dart';
 import '../tasks/tasks_screen.dart';
 import '../timelogs/timelogs_screen.dart';
 import '../workorders/workorders_screen.dart';
-import '../workspace/workspace_picker.dart';
+import '../tenant/tenant_picker.dart';
 
 class _Section {
   const _Section(this.label, this.icon, this.body);
@@ -52,7 +52,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 800;
-    final workspace = ref.watch(activeWorkspaceProvider).value;
+    final tenant = ref.watch(activeTenantProvider).value;
     final user = ref.watch(authControllerProvider).user;
 
     final appBar = AppBar(
@@ -62,8 +62,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         PopupMenuButton<String>(
           icon: const Icon(Icons.account_circle_outlined),
           onSelected: (v) async {
-            if (v == 'workspace') {
-              showWorkspacePicker(context);
+            if (v == 'tenant') {
+              showTenantPicker(context);
             } else if (v == 'signout') {
               ref.read(authControllerProvider.notifier).signOut();
             } else if (v == 'demo') {
@@ -78,10 +78,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             ),
             const PopupMenuDivider(),
             PopupMenuItem(
-              value: 'workspace',
+              value: 'tenant',
               child: ListTile(
-                leading: const Icon(Icons.workspaces_outline),
-                title: Text(workspace?.tenantName ?? 'Choose workspace'),
+                leading: const Icon(Icons.business_outlined),
+                title: Text(tenant?.name ?? 'Choose business'),
                 contentPadding: EdgeInsets.zero,
               ),
             ),

@@ -14,11 +14,17 @@ class CollectionRepository<T extends PbRecord> {
     required this.collection,
     required this.fromJson,
     required AppDatabase db,
+    this.activeTenantId,
   }) : _db = db;
 
   final String collection;
   final T Function(Map<String, dynamic>) fromJson;
   final AppDatabase _db;
+
+  /// Set for tenant-scoped collections: returns the tenant new records belong
+  /// to. PocketBase rejects a create without one, so a missing tenant fails
+  /// here rather than silently on the next sync.
+  final String? Function()? activeTenantId;
 
   static const _uuid = Uuid();
 
@@ -43,8 +49,16 @@ class CollectionRepository<T extends PbRecord> {
   Future<String> create(Map<String, dynamic> fields) async {
     final id = 'local_${_uuid.v4()}';
     final now = DateTime.now().toUtc().toIso8601String();
+    String? tenant;
+    if (activeTenantId != null && fields['tenant'] == null) {
+      tenant = activeTenantId!();
+      if (tenant == null) {
+        throw StateError('Choose a business before adding to $collection.');
+      }
+    }
     final json = <String, dynamic>{
       ...fields,
+      if (tenant != null) 'tenant': tenant,
       'id': id,
       'created': now,
       'updated': now,

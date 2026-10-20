@@ -11,7 +11,8 @@ class Config {
 
   /// Canonical PocketBase collection names used by Thutter v1.
   static const cUsers = 'users';
-  static const cWorkspace = 'workspace';
+  static const cTenants = 'tenants';
+  static const cMemberships = 'memberships';
   static const cContacts = 'contactss';
   static const cCompanies = 'companies';
   static const cLeads = 'leads';
@@ -25,7 +26,8 @@ class Config {
   /// Every collection the sync service manages, in dependency order
   /// (referenced-before-referencing where it matters for display).
   static const syncedCollections = <String>[
-    cWorkspace,
+    cTenants,
+    cMemberships,
     cUsers,
     cContacts,
     cCompanies,
@@ -37,6 +39,21 @@ class Config {
     cEquipment,
     cTimelogs,
   ];
+
+  /// Collections whose rows belong to one tenant (required `tenant` relation).
+  /// New records in these get the active tenant stamped on create, and lists
+  /// only show rows for the active tenant.
+  static const tenantScoped = <String>{
+    cContacts,
+    cCompanies,
+    cProperty,
+    cEmployees,
+    cLeads,
+    cWorkorders,
+    cTasks,
+    cEquipment,
+    cTimelogs,
+  };
 
   /// How often to run a background sync while the app is foregrounded.
   static const syncInterval = Duration(minutes: 5);

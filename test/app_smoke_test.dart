@@ -80,6 +80,52 @@ void main() {
     expect(row.dirty, isTrue);
   });
 
+  test('tenant-scoped repos stamp the active tenant on create', () async {
+    final db = _memDb();
+    addTearDown(db.close);
+    String? active;
+    final repo = CollectionRepository(
+      collection: Config.cContacts,
+      fromJson: Contact.new,
+      db: db,
+      activeTenantId: () => active,
+    );
+
+    // No business chosen yet → refuse, rather than queue a create the server
+    // will reject.
+    expect(() => repo.create({'firstname': 'A'}), throwsStateError);
+
+    active = 'natura';
+    final id = await repo.create({'firstname': 'A'});
+    expect((await repo.get(id))!.tenantId, 'natura');
+
+    // An explicit tenant wins.
+    final other = await repo.create({'firstname': 'B', 'tenant': 'kalmark'});
+    expect((await repo.get(other))!.tenantId, 'kalmark');
+  });
+
+  test('pruneOutsideTenants drops synced rows from other tenants only',
+      () async {
+    final db = _memDb();
+    addTearDown(db.close);
+    Map<String, dynamic> row(String id, String tenant) =>
+        {'id': id, 'updated': '2026-01-01 00:00:00.000Z', 'tenant': tenant};
+
+    await db.upsertFromServer(Config.cContacts, row('keep', 'natura'));
+    await db.upsertFromServer(Config.cContacts, row('gone', 'kalmark'));
+    await db.upsertLocal(Config.cContacts, row('dirty', 'kalmark'));
+    await db.setLastSynced(Config.cContacts, 'x');
+    await db.setLastSynced(Config.cMemberships, 'y');
+
+    await db.pruneOutsideTenants({Config.cContacts}, {'natura'});
+    final ids = (await db.getCollection(Config.cContacts)).map((r) => r.id);
+    expect(ids, unorderedEquals(['keep', 'dirty']));
+
+    await db.clearCursors(keep: {Config.cMemberships});
+    expect(await db.lastSynced(Config.cContacts), isNull);
+    expect(await db.lastSynced(Config.cMemberships), 'y');
+  });
+
   test('pull cursor + server upsert clears the dirty flag', () async {
     final db = _memDb();
     addTearDown(db.close);

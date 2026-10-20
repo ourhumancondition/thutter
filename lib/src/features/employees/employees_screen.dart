@@ -180,7 +180,6 @@ class _EmployeeEditScreenState extends ConsumerState<EmployeeEditScreen> {
   }
 
   Future<void> _save() async {
-    final ws = ref.read(activeWorkspaceProvider).value;
     final first = _first.text.trim();
     final last = _last.text.trim();
     final fields = <String, dynamic>{
@@ -196,7 +195,6 @@ class _EmployeeEditScreenState extends ConsumerState<EmployeeEditScreen> {
     };
     final repo = ref.read(employeeRepoProvider);
     if (widget.existing == null) {
-      if (ws != null) fields['workspace'] = ws.id;
       await repo.create(fields);
     } else {
       await repo.update(widget.existing!.id, fields);
