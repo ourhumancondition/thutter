@@ -11,32 +11,79 @@ import '../pb/pb_files.dart';
 
 enum SyncPhase { idle, running, offline, error }
 
+/// Why the last sync failed, so the UI can say something useful.
+enum SyncProblem {
+  none,
+
+  /// No network, or the server didn't answer (DNS, timeout, server down).
+  unreachable,
+
+  /// The server rejected the saved sign-in.
+  signedOut,
+
+  /// The server refused a change or a download (validation or permissions).
+  rejected,
+
+  /// Anything else.
+  unknown,
+}
+
 class SyncStatus {
   const SyncStatus({
     this.phase = SyncPhase.idle,
     this.lastRun,
+    this.lastSuccess,
     this.lastError,
+    this.errorDetail,
+    this.problem = SyncProblem.none,
     this.pendingPush = 0,
   });
 
   final SyncPhase phase;
   final DateTime? lastRun;
+
+  /// When a sync last finished without an error.
+  final DateTime? lastSuccess;
+
+  /// Plain-language description of the last failure.
   final String? lastError;
+
+  /// Technical detail of the last failure (status code, server message).
+  final String? errorDetail;
+  final SyncProblem problem;
   final int pendingPush;
 
+  bool get hasError => phase == SyncPhase.error;
+
+  /// Error fields are cleared unless passed again.
   SyncStatus copyWith({
     SyncPhase? phase,
     DateTime? lastRun,
+    DateTime? lastSuccess,
     String? lastError,
+    String? errorDetail,
+    SyncProblem problem = SyncProblem.none,
     int? pendingPush,
   }) =>
       SyncStatus(
         phase: phase ?? this.phase,
         lastRun: lastRun ?? this.lastRun,
+        lastSuccess: lastSuccess ?? this.lastSuccess,
         lastError: lastError,
+        errorDetail: errorDetail,
+        problem: problem,
         pendingPush: pendingPush ?? this.pendingPush,
       );
 }
+
+/// Friendly names for collections whose PocketBase names are odd.
+String _label(String collection) => switch (collection) {
+      'contactss' => 'contacts',
+      'property' => 'properties',
+      'workorders' => 'work orders',
+      'timelogs' => 'time logs',
+      _ => collection,
+    };
 
 /// Fields PocketBase manages itself — never sent back in a create/update body.
 const _systemFields = {
@@ -77,22 +124,35 @@ class SyncService {
 
   Future<void> refreshPendingCount() async {
     final dirty = await _db.dirtyRecords();
-    _emit(_status.copyWith(pendingPush: dirty.length));
+    _emit(_status.copyWith(
+      pendingPush: dirty.length,
+      lastError: _status.lastError,
+      errorDetail: _status.errorDetail,
+      problem: _status.problem,
+    ));
   }
+
+  /// What the current cycle is doing, for error messages.
+  String _step = 'syncing';
 
   /// Runs one full sync cycle. Safe to call concurrently — extra calls no-op
   /// while a cycle is in flight.
   Future<void> syncAll({bool online = true}) async {
     if (_running) return;
     _running = true;
+    // Keep showing the previous error while retrying, so it doesn't flicker
+    // away and back.
     _emit(_status.copyWith(
       phase: online ? SyncPhase.running : SyncPhase.offline,
-      lastError: null,
+      lastError: _status.lastError,
+      errorDetail: _status.errorDetail,
+      problem: _status.problem,
     ));
     try {
       if (online && _pb.authStore.isValid) {
         await _pushAll();
         for (final c in Config.syncedCollections) {
+          _step = 'downloading ${_label(c)}';
           await pullCollection(c);
           if (c == Config.cMemberships) await _resetIfTenantsChanged();
         }
@@ -101,17 +161,73 @@ class SyncService {
       _emit(_status.copyWith(
         phase: online ? SyncPhase.idle : SyncPhase.offline,
         lastRun: DateTime.now(),
-        lastError: null,
+        lastSuccess: online ? DateTime.now() : null,
       ));
     } catch (e) {
+      final (problem, message, detail) = describeError(e, _step);
       _emit(_status.copyWith(
         phase: SyncPhase.error,
-        lastError: e.toString(),
+        lastError: message,
+        errorDetail: detail,
+        problem: problem,
         lastRun: DateTime.now(),
       ));
     } finally {
       _running = false;
     }
+  }
+
+  /// Turns a sync exception into (kind, plain-language message, detail).
+  static (SyncProblem, String, String) describeError(Object e, String step) {
+    if (e is TimeoutException || e is SocketException || e is http.ClientException) {
+      return (
+        SyncProblem.unreachable,
+        "Can't reach the Thyme server (while $step). Check your internet "
+            'connection. Your changes are saved on this device.',
+        e.toString(),
+      );
+    }
+    if (e is ClientException) {
+      final code = e.statusCode;
+      final serverMsg = e.response['message']?.toString();
+      final fields = e.response['data'];
+      final detail = [
+        'HTTP $code',
+        if (serverMsg != null && serverMsg.isNotEmpty) serverMsg,
+        if (fields is Map && fields.isNotEmpty) jsonEncode(fields),
+        if (code == 0 && e.originalError != null) '${e.originalError}',
+      ].join(' — ');
+      if (code == 0 || code == 502 || code == 503 || code == 504) {
+        return (
+          SyncProblem.unreachable,
+          "Can't reach the Thyme server (while $step). Check your internet "
+              'connection. Your changes are saved on this device.',
+          detail,
+        );
+      }
+      if (code == 401) {
+        return (
+          SyncProblem.signedOut,
+          'The server no longer accepts your sign-in. Sign out and sign in '
+              'again to keep syncing.',
+          detail,
+        );
+      }
+      if (code == 400 || code == 403 || code == 404) {
+        return (
+          SyncProblem.rejected,
+          'The server refused a request while $step'
+              '${serverMsg == null ? '' : ': $serverMsg'}',
+          detail,
+        );
+      }
+      return (
+        SyncProblem.unknown,
+        'The Thyme server had a problem while $step (error $code).',
+        detail,
+      );
+    }
+    return (SyncProblem.unknown, 'Sync failed while $step.', e.toString());
   }
 
   // ------------------------------------------------------------------ push ---
@@ -124,6 +240,7 @@ class SyncService {
         for (final e in json.entries)
           if (!_systemFields.contains(e.key)) e.key: e.value,
       };
+      _step = 'uploading a change to ${_label(row.collection)}';
       final files = await _multipart(json[kPendingFiles]);
       try {
         if (row.deleted) {

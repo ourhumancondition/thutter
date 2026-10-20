@@ -9,11 +9,13 @@ import 'package:thutter/src/core/config.dart';
 import 'package:thutter/src/data/db/database.dart';
 import 'package:thutter/src/data/dev/demo_seed.dart';
 import 'package:thutter/src/data/models/models.dart';
+import 'package:thutter/src/data/net/connection_check.dart';
 import 'package:thutter/src/data/pb/credential_store.dart';
 import 'package:thutter/src/data/pb/pocketbase_client.dart';
 import 'package:thutter/src/data/providers.dart';
 import 'package:thutter/src/data/repositories/collection_repository.dart';
 import 'package:thutter/src/data/status/employee_status.dart';
+import 'package:thutter/src/data/sync/sync_service.dart';
 
 AppDatabase _memDb() => AppDatabase(NativeDatabase.memory());
 
@@ -124,6 +126,70 @@ void main() {
     await db.clearCursors(keep: {Config.cMemberships});
     expect(await db.lastSynced(Config.cContacts), isNull);
     expect(await db.lastSynced(Config.cMemberships), 'y');
+  });
+
+  group('connection check', () {
+    Future<NetState> run({
+      required bool iface,
+      required bool server,
+      required bool internet,
+    }) async {
+      final c = ProviderContainer(overrides: [
+        interfaceCheckProvider.overrideWithValue(() async => iface),
+        connectionProbeProvider.overrideWithValue((url) async =>
+            url.path == '/api/health' ? server : internet),
+      ]);
+      addTearDown(c.dispose);
+      return (await c.read(connectionProvider.notifier).check()).state;
+    }
+
+    test('server answers → online', () async {
+      expect(await run(iface: true, server: true, internet: true),
+          NetState.online);
+    });
+    test('Wi-Fi off → no network', () async {
+      expect(await run(iface: false, server: true, internet: true),
+          NetState.noNetwork);
+    });
+    test('on a network but nothing answers → no internet', () async {
+      expect(await run(iface: true, server: false, internet: false),
+          NetState.noInternet);
+    });
+    test('internet works but Thyme does not → server down', () async {
+      expect(await run(iface: true, server: false, internet: true),
+          NetState.serverDown);
+    });
+  });
+
+  group('sync error descriptions', () {
+    test('network failures read as "can\'t reach server"', () {
+      final (p, msg, _) = SyncService.describeError(
+          ClientException(statusCode: 0, originalError: 'Failed host lookup'),
+          'downloading contacts');
+      expect(p, SyncProblem.unreachable);
+      expect(msg, contains("Can't reach the Thyme server"));
+      expect(msg, contains('downloading contacts'));
+    });
+
+    test('a refused change shows the server message and field errors', () {
+      final (p, msg, detail) = SyncService.describeError(
+          ClientException(statusCode: 400, response: {
+            'message': 'Failed to create record.',
+            'data': {
+              'tenant': {'code': 'validation_required'}
+            },
+          }),
+          'uploading a change to tasks');
+      expect(p, SyncProblem.rejected);
+      expect(msg, contains('Failed to create record.'));
+      expect(detail, contains('validation_required'));
+    });
+
+    test('401 means the sign-in expired', () {
+      final (p, _, _) =
+          SyncService.describeError(ClientException(statusCode: 401), 'x');
+      expect(p, SyncProblem.signedOut);
+    });
   });
 
   test('pull cursor + server upsert clears the dirty flag', () async {
