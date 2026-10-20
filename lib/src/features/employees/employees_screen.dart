@@ -164,9 +164,54 @@ class EmployeeEditScreen extends ConsumerStatefulWidget {
 }
 
 class _EmployeeEditScreenState extends ConsumerState<EmployeeEditScreen> {
-  late final _first = TextEditingController(text: widget.existing?.firstname);
-  late final _last = TextEditingController(text: widget.existing?.lastname);
-  late final _email = TextEditingController(text: widget.existing?.email);
+  // Most employee rows only have `fullname` (first/last are blank), and some
+  // only have a linked contact card — fill the form from whichever has it.
+  late final _names = _initialNames();
+  late final _first = TextEditingController(text: _names.first);
+  late final _last = TextEditingController(text: _names.last);
+  late final _email = TextEditingController(
+      text: widget.existing?.email ?? _linkedContact()?.email);
+
+  @override
+  void initState() {
+    super.initState();
+    // The contact lookup may still be loading; fill any boxes that are still
+    // empty once it has.
+    if (widget.existing?.contactProfileId == null) return;
+    ref.read(contactsByIdProvider.future).then((_) {
+      final c = _linkedContact();
+      if (!mounted || c == null) return;
+      if (_first.text.isEmpty && _last.text.isEmpty) {
+        _first.text = c.firstname ?? '';
+        _last.text = c.lastname ?? '';
+      }
+      if (_email.text.isEmpty) _email.text = c.email ?? '';
+    });
+  }
+
+  Contact? _linkedContact() {
+    final id = widget.existing?.contactProfileId;
+    return id == null ? null : ref.read(contactsByIdProvider).value?[id];
+  }
+
+  ({String? first, String? last}) _initialNames() {
+    final e = widget.existing;
+    if (e == null) return (first: null, last: null);
+    if (e.firstname != null || e.lastname != null) {
+      return (first: e.firstname, last: e.lastname);
+    }
+    final full = e.fullname;
+    if (full != null) {
+      final words = full.split(RegExp(r'\s+'));
+      if (words.length == 1) return (first: full, last: null);
+      return (
+        first: words.sublist(0, words.length - 1).join(' '),
+        last: words.last,
+      );
+    }
+    final c = _linkedContact();
+    return (first: c?.firstname, last: c?.lastname);
+  }
   late final _jobType = TextEditingController(text: widget.existing?.jobType);
   late final _rate =
       TextEditingController(text: widget.existing?.rate?.toString());
@@ -188,9 +233,12 @@ class _EmployeeEditScreenState extends ConsumerState<EmployeeEditScreen> {
     final first = _first.text.trim();
     final last = _last.text.trim();
     final fields = <String, dynamic>{
-      'firstname': first,
-      'lastname': last,
-      'fullname': [first, last].where((s) => s.isNotEmpty).join(' '),
+      // Never blank out a stored name just because the boxes were empty.
+      if (first.isNotEmpty || last.isNotEmpty) ...{
+        'firstname': first,
+        'lastname': last,
+        'fullname': [first, last].where((s) => s.isNotEmpty).join(' '),
+      },
       'email': _email.text.trim(),
       'jobType': _jobType.text.trim(),
       'rate': num.tryParse(_rate.text.trim()),
