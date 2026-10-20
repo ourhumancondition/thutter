@@ -28,30 +28,35 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     return Scaffold(
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: SearchBar(
-              hintText: 'Search contacts',
-              leading: const Icon(Icons.search),
-              onChanged: (v) => setState(() => _query = v.toLowerCase()),
-            ),
+          ListSearchBar(
+            hint: 'Search contacts — name, company, email, phone, city',
+            onChanged: (v) => setState(() => _query = v),
           ),
           Expanded(
             child: contacts.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('$e')),
               data: (list) {
-                final filtered = _query.isEmpty
-                    ? list
-                    : list
-                        .where((c) =>
-                            c.label.toLowerCase().contains(_query) ||
-                            (c.email ?? '').toLowerCase().contains(_query))
-                        .toList();
+                final filtered = list
+                    .where((c) => matchesSearch(_query, [
+                          c.label,
+                          c.title,
+                          companies[c.companyId]?.name,
+                          c.email,
+                          c.mobile,
+                          c.phone,
+                          formatPhone(c.mobile),
+                          formatPhone(c.phone),
+                          c.addressLine,
+                          c.source,
+                        ]))
+                    .toList();
                 if (filtered.isEmpty) {
-                  return const EmptyState(
+                  return EmptyState(
                       icon: Icons.contacts_outlined,
-                      message: 'No contacts');
+                      message: _query.trim().isEmpty
+                          ? 'No contacts'
+                          : 'No contacts match "${_query.trim()}"');
                 }
                 return SyncRefresh(
                   child: ListView.builder(

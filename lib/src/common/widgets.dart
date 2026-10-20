@@ -312,6 +312,66 @@ class DetailRow extends StatelessWidget {
   }
 }
 
+/// True when every word of [query] appears somewhere in [fields]
+/// (case-insensitive). An empty query matches everything.
+bool matchesSearch(String query, Iterable<Object?> fields) {
+  final words =
+      query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+  if (words.isEmpty) return true;
+  final haystack =
+      fields.whereType<Object>().map((f) => '$f'.toLowerCase()).join(' ');
+  return words.every(haystack.contains);
+}
+
+/// Search box for the top of a list screen, with a clear button.
+class ListSearchBar extends StatefulWidget {
+  const ListSearchBar({super.key, required this.hint, required this.onChanged});
+
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<ListSearchBar> createState() => _ListSearchBarState();
+}
+
+class _ListSearchBarState extends State<ListSearchBar> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: SearchBar(
+        controller: _controller,
+        hintText: widget.hint,
+        leading: const Icon(Icons.search),
+        trailing: [
+          if (_controller.text.isNotEmpty)
+            IconButton(
+              tooltip: 'Clear search',
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _controller.clear();
+                setState(() {});
+                widget.onChanged('');
+              },
+            ),
+        ],
+        onChanged: (v) {
+          setState(() {});
+          widget.onChanged(v);
+        },
+      ),
+    );
+  }
+}
+
 /// Strips HTML tags from PocketBase `editor` fields for compact display.
 String plainText(String? html) {
   if (html == null) return '';

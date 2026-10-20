@@ -5,52 +5,92 @@ import '../../common/format.dart';
 import '../../common/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
+import '../tenant/tenant_switcher.dart';
 
 const _industries = [
   'Concrete', 'Construction', 'Gardening', 'Landscape', 'Maintenance',
   'Snow', 'Supply', 'Tree Service', 'Industrial', 'Other',
 ];
 
-class CompaniesScreen extends ConsumerWidget {
+class CompaniesScreen extends ConsumerStatefulWidget {
   const CompaniesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CompaniesScreen> createState() => _CompaniesScreenState();
+}
+
+class _CompaniesScreenState extends ConsumerState<CompaniesScreen> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
     final companies = ref.watch(companiesListProvider);
     return Scaffold(
-      body: companies.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (list) => list.isEmpty
-            ? const EmptyState(icon: Icons.business_outlined, message: 'No companies')
-            : SyncRefresh(
-                child: ListView.builder(
-                  itemCount: list.length,
-                  itemBuilder: (context, i) {
-                    final c = list[i];
-                    return ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.business)),
-                      title: Text(c.label),
-                      subtitle: Text([
-                        c.industry,
-                        if (c.isCustomer) 'Customer',
-                        if (c.isSupplier) 'Supplier',
-                      ].whereType<String>().join(' · ')),
-                      trailing: c.isLocalOnly
-                          ? const Icon(Icons.cloud_upload_outlined, size: 16)
-                          : null,
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CompanyDetailScreen(id: c.id),
-                      )),
+      body: Column(
+        children: [
+          ListSearchBar(
+            hint: 'Search companies — name, industry, email, phone, address',
+            onChanged: (v) => setState(() => _query = v),
+          ),
+          Expanded(
+            child: companies.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (all) {
+                final list = all
+                    .where((c) => matchesSearch(_query, [
+                          c.label,
+                          c.industry,
+                          c.billingEmail,
+                          c.phone,
+                          formatPhone(c.phone),
+                          c.address,
+                          if (c.isCustomer) 'customer',
+                          if (c.isSupplier) 'supplier',
+                        ]))
+                    .toList();
+                return list.isEmpty
+                  ? EmptyState(
+                      icon: Icons.business_outlined,
+                      message: _query.trim().isEmpty
+                          ? 'No companies'
+                          : 'No companies match "${_query.trim()}"')
+                  : SyncRefresh(
+                      child: ListView.builder(
+                        itemCount: list.length,
+                        itemBuilder: (context, i) {
+                          final c = list[i];
+                          return ListTile(
+                            leading: const CircleAvatar(child: Icon(Icons.business)),
+                            title: Text(c.label),
+                            subtitle: Text([
+                              c.industry,
+                              if (c.isCustomer) 'Customer',
+                              if (c.isSupplier) 'Supplier',
+                            ].whereType<String>().join(' · ')),
+                            trailing: c.isLocalOnly
+                                ? const Icon(Icons.cloud_upload_outlined, size: 16)
+                                : null,
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => CompanyDetailScreen(id: c.id),
+                            )),
+                          );
+                        },
+                      ),
                     );
-                  },
-                ),
-              ),
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CompanyEditScreen()),
+        onPressed: () => confirmTenantThen(
+          context,
+          ref,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const CompanyEditScreen()),
+          ),
         ),
         icon: const Icon(Icons.add),
         label: const Text('New company'),
