@@ -96,11 +96,28 @@ class ActiveTenant extends AsyncNotifier<Tenant?> {
   }
 
   Future<void> select(Tenant tenant) async {
+    final previous = state.value?.id;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_activeTenantKey, tenant.id);
     state = AsyncData(tenant);
+    if (previous != null && previous != tenant.id) {
+      ref.read(confirmAfterSwitchProvider.notifier).set(true);
+    }
   }
 }
+
+/// True right after the user switches business, until they confirm the
+/// business on their first new record — a guard against adding to the wrong
+/// one out of habit.
+class ConfirmAfterSwitch extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
+final confirmAfterSwitchProvider =
+    NotifierProvider<ConfirmAfterSwitch, bool>(ConfirmAfterSwitch.new);
 
 final activeTenantProvider =
     AsyncNotifierProvider<ActiveTenant, Tenant?>(ActiveTenant.new);

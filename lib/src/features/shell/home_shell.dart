@@ -19,7 +19,7 @@ import '../property/property_screen.dart';
 import '../tasks/tasks_screen.dart';
 import '../timelogs/timelogs_screen.dart';
 import '../workorders/workorders_screen.dart';
-import '../tenant/tenant_picker.dart';
+import '../tenant/tenant_switcher.dart';
 
 class _Section {
   const _Section(this.label, this.icon, this.body);
@@ -55,18 +55,38 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 800;
-    final tenant = ref.watch(activeTenantProvider).value;
+    final canEditBusiness =
+        ref.watch(activeMembershipProvider)?.canManageMembers ?? false;
     final user = ref.watch(authControllerProvider).user;
+    final showSection = MediaQuery.sizeOf(context).width >= 520;
 
     final appBar = AppBar(
-      title: Text(_sections[_index].label),
+      titleSpacing: wide ? 16 : 0,
+      // Business switcher first, so which business you're in is always the
+      // first thing on the bar; the section name follows when there's room.
+      title: Row(
+        children: [
+          const Flexible(flex: 3, child: TenantSwitcher()),
+          if (showSection) ...[
+            const SizedBox(width: 12),
+            const SizedBox(height: 24, child: VerticalDivider(width: 1)),
+            const SizedBox(width: 12),
+            Flexible(
+              flex: 2,
+              child: Text(_sections[_index].label,
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ],
+      ),
+      bottom: const TenantStripe(),
       actions: [
         const SyncStatusChip(),
         PopupMenuButton<String>(
           icon: const Icon(Icons.account_circle_outlined),
           onSelected: (v) async {
-            if (v == 'tenant') {
-              showTenantPicker(context);
+            if (v == 'color') {
+              showTenantColorPicker(context);
             } else if (v == 'signout') {
               if (await _confirmSignOut(context, ref)) {
                 ref.read(authControllerProvider.notifier).signOut();
@@ -82,14 +102,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               child: Text(user?.label ?? 'Signed in'),
             ),
             const PopupMenuDivider(),
-            PopupMenuItem(
-              value: 'tenant',
-              child: ListTile(
-                leading: const Icon(Icons.business_outlined),
-                title: Text(tenant?.name ?? 'Choose business'),
-                contentPadding: EdgeInsets.zero,
+            if (canEditBusiness)
+              const PopupMenuItem(
+                value: 'color',
+                child: ListTile(
+                  leading: Icon(Icons.palette_outlined),
+                  title: Text('Business colour…'),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-            ),
             const PopupMenuItem(
               value: 'signout',
               child: ListTile(

@@ -64,8 +64,12 @@ class PropertyScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const PropertyEditScreen()),
+        onPressed: () => confirmTenantThen(
+          context,
+          ref,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PropertyEditScreen()),
+          ),
         ),
         icon: const Icon(Icons.add),
         label: const Text('New property'),

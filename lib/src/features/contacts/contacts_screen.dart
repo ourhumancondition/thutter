@@ -8,6 +8,7 @@ import '../../common/widgets.dart';
 import '../../core/config.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
+import '../tenant/tenant_switcher.dart';
 
 class ContactsScreen extends ConsumerStatefulWidget {
   const ContactsScreen({super.key});
@@ -91,8 +92,12 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ContactEditScreen()),
+        onPressed: () => confirmTenantThen(
+          context,
+          ref,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ContactEditScreen()),
+          ),
         ),
         icon: const Icon(Icons.person_add_alt),
         label: const Text('New contact'),

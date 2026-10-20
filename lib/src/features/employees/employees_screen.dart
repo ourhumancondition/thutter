@@ -8,6 +8,7 @@ import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
 import '../../data/status/employee_status.dart';
 import '../timelogs/timesheet_screen.dart';
+import '../tenant/tenant_switcher.dart';
 
 class EmployeesScreen extends ConsumerWidget {
   const EmployeesScreen({super.key});
@@ -75,8 +76,12 @@ class EmployeesScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const EmployeeEditScreen()),
+        onPressed: () => confirmTenantThen(
+          context,
+          ref,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const EmployeeEditScreen()),
+          ),
         ),
         icon: const Icon(Icons.add),
         label: const Text('New employee'),

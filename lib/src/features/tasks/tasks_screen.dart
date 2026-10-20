@@ -5,6 +5,7 @@ import '../../common/format.dart';
 import '../../common/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/providers.dart';
+import '../tenant/tenant_switcher.dart';
 
 class TasksScreen extends ConsumerWidget {
   const TasksScreen({super.key});
@@ -56,8 +57,12 @@ class TasksScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const TaskEditScreen()),
+        onPressed: () => confirmTenantThen(
+          context,
+          ref,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TaskEditScreen()),
+          ),
         ),
         icon: const Icon(Icons.add),
         label: const Text('New task'),

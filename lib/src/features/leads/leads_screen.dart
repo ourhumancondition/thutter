@@ -63,8 +63,12 @@ class LeadsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const LeadEditScreen()),
+        onPressed: () => confirmTenantThen(
+          context,
+          ref,
+          () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const LeadEditScreen()),
+          ),
         ),
         icon: const Icon(Icons.add),
         label: const Text('New lead'),

@@ -10,6 +10,8 @@ class Tenant extends PbRecord {
   String get name => str('name') ?? 'Untitled business';
   String? get slug => str('slug');
   String? get plan => str('plan'); // trial | active | suspended
+  /// Owner-chosen colour, `#RRGGBB`, or null for the automatic one.
+  String? get colorHex => str('color');
   DateTime? get archivedAt => date('archived_at');
   bool get isArchived => archivedAt != null;
 }

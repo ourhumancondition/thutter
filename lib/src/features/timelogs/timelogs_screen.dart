@@ -41,8 +41,12 @@ class TimelogsScreen extends ConsumerWidget {
         ),
         floatingActionButton: FloatingActionButton.extended(
           heroTag: null,
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TimelogEditScreen()),
+          onPressed: () => confirmTenantThen(
+            context,
+            ref,
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TimelogEditScreen()),
+            ),
           ),
           icon: const Icon(Icons.more_time),
           label: const Text('Log time'),
