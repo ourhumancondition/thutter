@@ -49,6 +49,11 @@ const _systemFields = {
   kPendingFiles,
 };
 
+/// Longest any single server call may take. Without a limit, one request that
+/// never answers leaves the cycle "running" forever, and since extra calls
+/// no-op while a cycle is in flight, sync stops for good.
+const _requestTimeout = Duration(seconds: 60);
+
 /// Push-then-pull, last-write-wins sync between the local [AppDatabase] and
 /// PocketBase. Generic across every collection in [Config.syncedCollections].
 class SyncService {
@@ -123,18 +128,23 @@ class SyncService {
       try {
         if (row.deleted) {
           if (!row.id.startsWith('local_')) {
-            await _pb.collection(row.collection).delete(row.id);
+            await _pb
+                .collection(row.collection)
+                .delete(row.id)
+                .timeout(_requestTimeout);
           }
           await _db.hardDelete(row.collection, row.id);
         } else if (row.id.startsWith('local_')) {
           final created = await _pb
               .collection(row.collection)
-              .create(body: body, files: files);
+              .create(body: body, files: files)
+              .timeout(_requestTimeout);
           await _db.replaceId(row.collection, row.id, created.toJson());
         } else {
           final updated = await _pb
               .collection(row.collection)
-              .update(row.id, body: body, files: files);
+              .update(row.id, body: body, files: files)
+              .timeout(_requestTimeout);
           await _db.markSynced(
               row.collection, row.id, updated.toJson()['updated'] as String?);
         }
@@ -203,11 +213,10 @@ class SyncService {
     final filter = since == null || since.isEmpty ? '' : 'updated > "$since"';
     final cycleStart = DateTime.now().toUtc();
 
-    final items = await _pb.collection(collection).getFullList(
-          filter: filter,
-          sort: 'updated',
-          batch: 200,
-        );
+    final items = await _pb
+        .collection(collection)
+        .getFullList(filter: filter, sort: 'updated', batch: 200)
+        .timeout(_requestTimeout);
 
     for (final record in items) {
       final json = record.toJson();
