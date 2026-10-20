@@ -53,7 +53,9 @@ class SyncStatusChip extends ConsumerWidget {
       label = '${status.pendingPush} to sync';
     } else {
       icon = Icons.cloud_done_outlined;
-      label = 'Synced ${relativeTime(status.lastRun)}';
+      label = status.lastRun == null
+          ? 'Not synced yet'
+          : 'Synced ${relativeTime(status.lastRun)}';
     }
 
     final troubled =

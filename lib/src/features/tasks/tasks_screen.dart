@@ -79,18 +79,22 @@ class TaskEditScreen extends ConsumerStatefulWidget {
   ConsumerState<TaskEditScreen> createState() => _TaskEditScreenState();
 }
 
+/// Task statuses offered in the editor. `tasks.status` is free text on the
+/// server, so this list lives here; "Done" is kept in step with `completed`.
+const taskStatuses = ['Open', 'In progress', 'Waiting', 'Done'];
+const _done = 'Done';
+
 class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   late final _name = TextEditingController(text: widget.existing?.shortname);
   late final _notes = TextEditingController(text: widget.existing?.notes);
-  late final _status = TextEditingController(text: widget.existing?.status);
-  late DateTime? _due = widget.existing?.due;
   late bool _completed = widget.existing?.completed ?? false;
+  late String _status = widget.existing?.status ?? (_completed ? _done : 'Open');
+  late DateTime? _due = widget.existing?.due;
 
   @override
   void dispose() {
     _name.dispose();
     _notes.dispose();
-    _status.dispose();
     super.dispose();
   }
 
@@ -99,7 +103,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     final fields = <String, dynamic>{
       'shortname': _name.text.trim(),
       'notes': _notes.text.trim(),
-      'status': _status.text.trim(),
+      'status': _status,
       'due': _due?.toUtc().toIso8601String(),
       'completed': _completed,
     };
@@ -156,7 +160,14 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
           SwitchListTile(
             title: const Text('Completed'),
             value: _completed,
-            onChanged: (v) => setState(() => _completed = v),
+            onChanged: (v) => setState(() {
+              _completed = v;
+              if (v) {
+                _status = _done;
+              } else if (_status == _done) {
+                _status = 'Open';
+              }
+            }),
           ),
           _tf(_notes, 'Notes', maxLines: 5),
         ],
